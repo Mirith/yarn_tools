@@ -5,23 +5,18 @@
 # which may differ from loom to loom, but our loom has 2" sections 
 
 """
-we should consider: 
+we should eventually consider: 
 non-multiples of 2" wide warps 
-    extra should be evenly distributed on end sections 
 
 we need a minimum of 2" wide strips, they can be 2.1 or 2.2" etc. but not less 
+should check if distribution of extra threads puts us over this limit 
 
 how will we provide input? 
 """
 
-# input: number sections 
-# color sequence 
+# input: 
+# color and quantity  
 # assume: letter###
-
-"""
-8 
-A8 B48 C6 A30 B6 C18 A6 B78 C6 A48 B6 C31 
-"""
 
 import re
 import pdb
@@ -36,41 +31,28 @@ from itertools import groupby
 number_sections = 9
 input_sequence = ["A547"]
 
-""""""
-
-
-"""
-have to interpret the sequence in a meaningful way 
-
-but also have to determine how many ends are in a section 
-
-probably should: extract total ends from sequence 
-(todo compare to additional input)
-"""
-
 total_ends = 0
 warp_color_sequence = []
 
 ends = 0
 
-# create total sequence 
+# create overall color sequence so we can group into sections later
 for stripe in input_sequence:
-    # pdb.set_trace()
     ends = int(re.search(r'\d+', stripe).group(0))
     color = re.search(r'[a-zA-Z]+', stripe).group(0)
     total_ends += ends
     for end in range(0,ends):
         warp_color_sequence.append(color)
 
-# determine number of ends per section 
+# determine estimated number of ends per section 
+# we need to distribute the modulo across our sections evenly later 
 approximate = total_ends // number_sections 
 modulo = total_ends % number_sections
 
-# create first version of sections, with minimum number of ends 
 all_section_number_threads = [approximate]*number_sections
 
-
-# we will distribute the modulo, if any, across sections evenly, working from the outside in, alternating sides 
+# strategy: work outside in, one thread per section 
+# at the halfway point, reset to the outside section 
 if modulo != 0:
     
     left_index = 0
@@ -84,7 +66,7 @@ if modulo != 0:
         right_index -= 1 
         modulo -= 2
 
-        # reset indexes if needed
+        # reset indexes if we've reached halfway 
         if left_index > halfway:
             left_index = 0
 
@@ -95,10 +77,7 @@ if modulo != 0:
             all_section_number_threads[left_index] += 1
             modulo -= 1
 
-"""now we are ready to slice warp sequence"""
-
-# needs to be ordered, needs to be consolidated color + number combinations 
-# ex A 3, B 6, A 8, C 7 
+#now we are ready to slice warp sequence
 final_sections = [""]*number_sections
 
 current_section_number = 0
@@ -116,6 +95,7 @@ for section_length in all_section_number_threads:
 
     for color, amount in grouped: 
         final_sections[current_section_number] += color + ": " + str(len(list(amount))) + " \t "  
+        
     # update everything for the next loop 
     current_section_number += 1
     section_start_index += section_length
