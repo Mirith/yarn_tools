@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Sectional Warping Calculator</title>
+<style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    input, button { margin: 6px 0; padding: 6px; width: 300px; }
+    #results { margin-top: 20px; white-space: pre-wrap; font-family: monospace; }
+</style>
+</head>
+<body>
+
+<h2>Sectional Warping Calculator</h2>
+
+<label>Total warp ends in pattern:</label><br>
+<input id="warpEnds" type="number" value="220"><br>
+
+<label>Ends per inch (EPI):</label><br>
+<input id="epi" type="number" step=".5" value="16"><br>
+
+<label>Desired section width (inches):</label><br>
+<input id="sectionWidth" type="number" step="0.1" value="2"><br>
+
+<label>Color sequence, comma-separated (e.g. A8, B48, C6) or single color (220):</label><br>
+<input id="colorSeq" type="text" value=""A24", "B10", "C10", "A24", "B10", "C10", "A24", "B10", "C10", "A24", "B10", "C10", "A24", "B10", "C10""><br>
+
+<button onclick="runWarpCalc()">Calculate Sections</button>
+
+<div id="results"></div>
+
+<script>
+// ----------------------------
+// Grouping helper
+// ----------------------------
+function groupByColor(arr) {
+    const groups = [];
+    let current = arr[0];
+    let count = 0;
+
+    for (const c of arr) {
+        if (c === current) {
+            count++;
+        } else {
+            groups.push([current, count]);
+            current = c;
+            count = 1;
+        }
+    }
+    groups.push([current, count]);
+    return groups;
+}
+
+// ----------------------------
+// Main calculation
+// ----------------------------
+function runWarpCalc() {
+    const warpEnds = Number(document.getElementById("warpEnds").value);
+    const sectionWidth = Number(document.getElementById("sectionWidth").value);
+    const epi = Number(document.getElementById("epi").value);   // user‑entered EPI
+
+    const seq = document.getElementById("colorSeq").value.trim();
+    const multiColorWarp = seq.includes(",");
+
+    if (!multiColorWarp) {
+
+        const match = seq.match(/^([a-zA-Z]?)(\d+)$/);
+        
+        if (!match) {
+            alert("Invalid single‑color format.");
+            return;
+        }
+        let color = match[1] || "A";   // default to A as placeholder, if no letter
+        let ends = Number(match[2]);
+
+        inputSeq = [`${color.toUpperCase()}${ends}`];
+    } 
+    else {
+        inputSeq = seq
+            .split(",")
+            .map(s => s.trim());
+    }
+
+    const widthInReed = warpEnds / epi; 
+
+    const numberSections = Math.floor(widthInReed / sectionWidth);
+
+    let totalEnds = 0;
+    let warpColorSequence = [];
+
+    // Build full warp sequence
+    for (const stripe of inputSeq) {
+        const ends = parseInt(stripe.match(/\d+/)[0], 10);
+        const color = stripe.match(/[a-zA-Z]+/)[0];
+
+        totalEnds += ends;
+        for (let i = 0; i < ends; i++) {
+            warpColorSequence.push(color);
+        }
+    }
+
+    // Minimum ends per section based on user EPI
+    const minEndsPerSection = Math.floor(epi * sectionWidth);
+
+    // Ends per section (initial distribution)
+    const approximate = Math.floor(totalEnds / numberSections);
+    let modulo = totalEnds % numberSections;
+
+    let sectionEnds = Array(numberSections).fill(approximate);
+
+    // Distribute extra ends from outside to inside, two at a time 
+    // once we reach the center, reset to outside 
+    if (modulo !== 0) {
+        let left = 0;
+        let right = sectionEnds.length - 1;
+        const halfway = sectionEnds.length / 2;
+
+        while (modulo > 0) {
+            sectionEnds[left] += 1;
+            sectionEnds[right] += 1;
+            left++;
+            right--;
+            modulo -= 2;
+
+            if (left > halfway) left = 0;
+            if (right < halfway) right = sectionEnds.length - 1;
+
+            if (modulo === 1) {
+                sectionEnds[left] += 1;
+                modulo -= 1;
+            }
+        }
+    }
+
+    // Slice into sections
+    let results = "";
+
+    // Show user‑entered values for clarity and ease of copy/paste 
+    results += `Project EPI: ${epi}\n`;
+    results += `Total warp ends: ${warpEnds}\n`;
+
+    if (totalEnds !== warpEnds) {
+        results += `Warning!  Total warp ends provided: ${warpEnds} doesn't equal ${totalEnds} in sequence\n` ;
+    }
+    results += `Project width in reed: ${widthInReed.toFixed(3)} inches\n`;
+    results += `Project section width: ${sectionWidth} inches\n`;
+    results += `Minimum ends per section: ${minEndsPerSection} inches\n\n`;
+
+    let start = 0;
+
+    for (let i = 0; i < numberSections; i++) {
+        const length = sectionEnds[i];
+        const selected = warpColorSequence.slice(start, start + length);
+        const grouped = groupByColor(selected);
+
+        results += `Section ${i + 1}`;
+
+        //  Warning if section is too thin
+        if (selected.length < minEndsPerSection) {
+            results += `  ⚠️ WARNING: fewer ends than required (${selected.length} < ${minEndsPerSection.toFixed(1)})\n`;
+        }
+
+        if (multiColorWarp) {
+            results += ` (${selected.length} ends):  `;
+
+            for (const [color, count] of grouped) {
+                results += `\n  ${color}: ${count}  `;
+            }
+            results += `\n\n`;
+        }
+        else {
+            results += `: ${selected.length} ends  \n`;
+        }
+
+        
+        start += length;
+    }
+
+    document.getElementById("results").textContent = results;
+}
+</script>
+
+
+</body>
+</html>
