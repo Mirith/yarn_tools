@@ -12,34 +12,30 @@
 </head>
 <body>
 
-This calculator just needs your section width, EPI, and warp sequence.  It will calculate how many ends per color, per stripe, as well as width in reed and total ends.  Please compare all numbers against your pattern/draft for accuracy. 
-
 <h2>Sectional Warping Calculator</h2>
 
 <label>Ends per inch (EPI):</label><br>
-<input id="epi" type="number" step=".5" value="16"><br>
+<input id="epi" type="number" value="16"><br>
 
 <label>Desired section width (inches):</label><br>
-<input id="sectionWidth" type="number" step="0.1" value="2"><br>
+<input id="sectionWidth" type="number" value="2"><br>
 
-<label>Color sequence, comma-separated (e.g. A8, B48, C6) or single color (220):</label><br>
-<input id="colorSeq" type="text"><br>
+<label>Desired number of sections:</label><br>
+<input id="numberSections" type="number"><br>
 
-<div>
-<label>Preference for odd or even number of sections (to allow for easier centering of the warp):</label><br>
-<input id="noOddEvenPref" type="radio" name="evenOddPref" value="No preference" checked="true">
-<label for="noOddEvenPref">No preference</label><br>
-<input id="evenPref" type="radio" name="evenOddPref" value="Even number of sections">
-<label for="evenPref">Even number of sections</label><br>
-<input id="oddPref" type="radio" name="evenOddPref" value="Odd number of sections">
-<label for="oddPref">Odd number of sections</label><br>
-</div>
+<label>Color sequence or single color:</label><br>
+<input id="colorSeq" type="text" placeholder="e.g. A8, B16, C8; or 320"><br>
+
+
 
 <button onclick="runWarpCalc()">Calculate Sections</button>
 
 <div id="results"></div>
 
 <script>
+
+    //<label>Optionally, provide a block size (will attempt to preserve blocks over section breaks)</label></br>
+    //<input id="optionalBlockSize" type="number"><br>
 // ----------------------------
 // Grouping helper
 // ----------------------------
@@ -60,6 +56,25 @@ function groupByColor(arr) {
     groups.push([current, count]);
     return groups;
 }
+// ----------------------------
+// Parse warp input 
+// ----------------------------
+function parseWarp(sequence) {
+
+    try {
+        // if we only get a number
+        if (sequence.match(/^\d+$/)) {
+            return [`A${sequence}`];
+        }
+        // assume we don't have a number, and instead have a list of colors + numbers 
+        const regex_parse = /[a-zA-Z]+\d+/g;
+        return sequence.match(regex_parse);
+    }
+    catch (error) {
+        document.getElementById("results").textContent = "Bad warp sequence input: please re-try";
+        return [];
+    }
+}
 
 // ----------------------------
 // Main calculation
@@ -67,28 +82,11 @@ function groupByColor(arr) {
 function runWarpCalc() {
     const sectionWidth = Number(document.getElementById("sectionWidth").value);
     const epi = Number(document.getElementById("epi").value);   // user‑entered EPI
+    const numberSections = Number(document.getElementById("numberSections").value);
+    //const blockSize = document.getElementById("numberSections").value ? Number(document.getElementById("optionalBlockSize").value): 0;
 
     const seq = document.getElementById("colorSeq").value.trim();
-    const multiColorWarp = seq.includes(",");
-
-    if (!multiColorWarp) {
-
-        const match = seq.match(/^([a-zA-Z]?)(\d+)$/);
-        
-        if (!match) {
-            alert("Invalid single‑color format.");
-            return;
-        }
-        let color = match[1] || "A";   // default to A as placeholder, if no letter
-        let ends = Number(match[2]);
-
-        inputSeq = [`${color.toUpperCase()}${ends}`];
-    } 
-    else {
-        inputSeq = seq
-            .split(",")
-            .map(s => s.trim());
-    }
+    const inputSeq = parseWarp(seq);
 
     let totalEnds = 0;
     let warpColorSequence = [];
@@ -104,12 +102,10 @@ function runWarpCalc() {
         }
     }
 
-    const warpEnds = totalEnds;
-    const widthInReed = warpEnds / epi; 
+    const widthInReed = totalEnds / epi; 
 
     // Minimum ends per section based on user EPI
     const minEndsPerSection = Math.floor(epi * sectionWidth);
-    const numberSections = Math.floor(widthInReed / sectionWidth);
 
     // Ends per section (initial distribution)
     const approximate = Math.floor(totalEnds / numberSections);
@@ -141,19 +137,24 @@ function runWarpCalc() {
         }
     }
 
-    // Slice into sections
     let results = "";
-
 
     // Show user‑entered values for clarity and ease of copy/paste 
     results += `Project EPI: ${epi}\n`;
-    results += `Total warp ends: ${warpEnds}\n`;
+    results += `Total warp ends: ${totalEnds}\n`;
     results += `Project width in reed: ${widthInReed.toFixed(3)} inches\n`;
     results += `Project section width: ${sectionWidth} inches\n`;
-    results += `Minimum ends per section: ${minEndsPerSection} inches\n\n`;
+    results += `Number of sections: ${numberSections}\n`; 
+    results += `Minimum ends per section: ${minEndsPerSection} ends\n\n`;
 
     let start = 0;
 
+    // warn if number of sections * EPI is less than color sequence value 
+    if (totalEnds < epi * sectionWidth * numberSections) { 
+        results += `⚠️ WARNING: fewer ends than required (${epi} EPI * ${numberSections} sections * ${sectionWidth} inch sections > ${totalEnds} total ends)\n\n`;
+    }
+
+    // Slice into sections
     for (let i = 0; i < numberSections; i++) {
         const length = sectionEnds[i];
         const selected = warpColorSequence.slice(start, start + length);
@@ -163,10 +164,14 @@ function runWarpCalc() {
 
         //  Warning if section is too thin
         if (selected.length < minEndsPerSection) {
-            results += `  ⚠️ WARNING: fewer ends than required (${selected.length} < ${minEndsPerSection.toFixed(1)})\n`;
+            results += `  ⚠️ WARNING: fewer ends than required (${selected.length} < ${minEndsPerSection})\n`;
         }
 
-        if (multiColorWarp) {
+        if (selected.length > minEndsPerSection * 1.5) {
+            results += `  ⚠️ WARNING: more ends than recommended (${selected.length} < 150% of ${minEndsPerSection})\n`;
+        }
+
+        if (inputSeq.length > 1) {
             results += ` (${selected.length} ends):  `;
 
             for (const [color, count] of grouped) {
@@ -175,15 +180,16 @@ function runWarpCalc() {
             results += `\n\n`;
         }
         else {
-            results += `: ${selected.length} ends  \n`;
+            results += `${selected.length} ends  \n`;
         }
 
-        
         start += length;
     }
 
     document.getElementById("results").textContent = results;
 }
+
+    
 </script>
 
 
