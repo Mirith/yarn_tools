@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AVL warping wheel spool position and revolution calculator</title>
+<style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    input, button { margin: 6px 0; padding: 6px; width: 300px; }
+    input[type=radio] { margin: 6px 0; padding: 6px; width: 30px; }
+    #results { margin-top: 20px; white-space: pre-wrap; font-family: monospace; }
+</style>
+</head>
+<body>
+
+<h2>AVL warping wheel calculator</h2>
+
+<p>Important note: loom waste!  </p>
+
+<p>This calculator assumes you're using the newer model of warping wheel, which will add loom waste to a warp for you (about 24").  So if you need an 8 yard warp plus loom waste, you would input 8 yards in the fields below.   If that 8 yards *does* include loom waste already, subtract 24" from your warp length before plugging numbers into the calculator.  To be extra clear: inputting 8 yards below will give you a total warp length of 8 yards and 24 inches.</p>
+
+<label>Desired warp length: yards</label><br>
+<input id="warpLengthYards" type="number" value="6"><br>
+<label>Desired warp length: inches</label><br>
+<input id="warpLengthExtInches" type="number" value=""><br>
+
+<button onclick="runAVLCalc()">Calculate Spools and Revolutions</button>
+
+<div id="results"></div>
+
+<script>
+
+function findOuterSpools(moduloResults) {
+
+    var minimum = Number.MAX_VALUE; 
+    var selectedKey = "";
+
+    moduloResults.forEach((value, key) => {
+        if (value < minimum) { 
+            minimum = value;
+            selectedKey = key;
+        }
+    });
+
+    return selectedKey;
+
+}
+
+// // provide alternates in case of mismatch in desired warp length 
+// function provideAlternate(numOuterSpools, numberRotations, spoolsInches, warpLength, warpTooShort) {
+
+//     console.log("original " + numOuterSpools + " " + numberRotations);
+
+//     // try a lot of values and sort, then find closest to what we want
+//         // ie, + and - 6 spool steps, and adjust rotation if needed  
+//     // original step up/down algorithm doesn't work for a somewhat subtle reason 
+
+
+//     // return "\nStep up: " + stepUpSpools + " outer spools and " + stepUpRotations + 
+//     //     " rotations, for " + (spoolsInches.get(stepUpSpools.toString()) * stepUpRotations) + 
+//     //     " inches.\nStep down: " + stepDownSpools + " outer spools and " + stepDownRotations + 
+//     //     " rotations, for " + (spoolsInches.get(stepDownSpools.toString()) * stepDownRotations) + " inches.";
+
+//     return "\nan alternate";
+// }
+
+
+function runAVLCalc() {
+    const warpLengthYards = Number(document.getElementById("warpLengthYards").value);
+    const warpLengthExtInches = Number(document.getElementById("warpLengthExtInches").value);
+    // first, calculate total warp length in inches 
+
+    const warpLength = (warpLengthYards * 36) + warpLengthExtInches; 
+    let results = "";
+
+    // outer spools count : circumference inches 
+    const spoolsInches = new Map();
+    var moduloResults = new Map();
+    var moduloInches = -1;
+    var numOuterSpools = -1; 
+    var numberRotations = -1; 
+
+    spoolsInches.set("6", 108);
+    spoolsInches.set("5", 102);
+    spoolsInches.set("4", 97);
+    spoolsInches.set("3", 92);
+    spoolsInches.set("2", 87);
+    spoolsInches.set("1", 82);
+    spoolsInches.set("0", 77);
+
+    spoolsInches.forEach((value, key) => {
+        moduloInches = warpLength % value;
+        if (moduloInches == 0) { 
+            numOuterSpools = parseInt(key);
+            console.log("updating moduloResults with " + key) 
+            return;
+        } 
+        moduloResults.set(key, moduloInches);
+    }); 
+
+    console.log(moduloResults)
+
+    results += "Requested total warp length: " + (warpLength + 24) + " inches";
+
+    let alternateSpoolsRotations = "";
+
+    if (numOuterSpools == -1) {
+        numOuterSpools = findOuterSpools(moduloResults);
+    }
+
+    console.log("num outer spools " + numOuterSpools)
+
+    numberRotations = Math.floor(warpLength / spoolsInches.get(numOuterSpools.toString()));
+    var actualLength = ((spoolsInches.get(numOuterSpools.toString()) * numberRotations) + 24);
+
+    //if (actualLength != (warpLength + 24)) {
+    if (false) {
+        results += "\nClosest match: " + numOuterSpools + " outer spools " + numberRotations+ " rotations, at " + actualLength + " inches."; 
+        results += provideAlternate(parseInt(numOuterSpools), parseInt(numberRotations), spoolsInches, warpLength, warpLength > actualLength);
+        
+    }
+    else {
+        results += "\nExact match: " + numOuterSpools + " outer spools, and " + numberRotations+ " rotations";
+    }
+    
+
+    document.getElementById("results").textContent = results;
+
+}
+
+// next determine which spool position is best, and how many rotations are needed 
+
+// modulo by each position iteration -- if find zero: stop 
+// else, store all results, and find minimum of results in array (?)
+// dictionary? 
+// if tie: prefer longer warp but note this 
+
+// finally, log total desired warp length, actual warp length, spool positions, number of revolutions per end 
+// ex (numbers aren't real)
+// Asked for 6'8" (5'5" + 24"), got 6'10".  Spools set to four out, two in.  3 revolutions per warp end.  
+
+</script>
+
+
+
